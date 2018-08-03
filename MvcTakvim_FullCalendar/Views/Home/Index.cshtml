@@ -1,0 +1,189 @@
+﻿
+@{
+    ViewBag.Title = "Index";
+}
+
+<div id="takvim"  style="margin-top:40px">
+
+</div>
+
+
+<script>
+    $(document).ready(function () {
+      GetTakvimEtkinlik();
+    });
+
+    function GetTakvimEtkinlik() {
+        $('#takvim').fullCalendar({
+            themeSystem: 'bootstrap4',
+            lang: 'tr',
+            header: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'month,agendaWeek,agendaDay'
+            },
+            editable: true,
+            events: '/Home/GetTakvimEtkinlik/',
+            dayClick: function (date, jsEvent, view) {
+                YeniEtkinlikForm(date.format());
+            },
+            eventClick: function (event) {
+                EtkinlikSilOnay(event.id);
+            },
+            eventDrop: function (event, delta, revertFunc) {
+                EtkinlikTarihGuncelle(event);
+            },
+            eventResize: function (event, delta, revertFunc) {
+                EtkinlikTarihGuncelle(event);
+            }
+        });
+    }
+
+    // Seçilen tarih için yeni event oluşturma, modal açar
+    function YeniEtkinlikForm(selectedDate) {
+        var html = '';
+
+        html += '<form class="form-horizontal">';
+        //Başlık
+        html += '<div class="form-group">';
+        html += '<label class="control-label col-sm-3">Başlık:</label>';
+        html += '<div class="col-sm-9">';
+        html += '<input type="text" class="form-control" id="txtTitle">';
+        html += '</div>';
+        html += '</div>';
+        //Renk
+        html += '<div class="form-group">';
+        html += '<label class="control-label col-sm-3">Renk:</label>';
+        html += '<div class="col-sm-9">';
+        html += '<select class="form-control" id="ddColor">';
+        html += '<option value="red">Kırmızı</option>';
+        html += '<option value="blue">Mavi</option>';
+        html += '<option value="green">Yeşil</option>';
+        html += '</select>';
+        html += '</div>';
+        html += '</div>';
+        //Başlangıç
+        html += '<div class="form-group">';
+        html += '<label class="control-label col-sm-3">Başlık:</label>';
+        html += '<div class="col-sm-9">';
+        html += '<input type="date" class="form-control" id="txtStartDate" value="' + selectedDate + '" />';
+        html += '</div>';
+        html += '</div>';
+        //Bitiş
+        html += '<div class="form-group">';
+        html += '<label class="control-label col-sm-3">Başlık:</label>';
+        html += '<div class="col-sm-9">';
+        html += '<input type="date" class="form-control" id="txtEndDate" value="' + selectedDate + '" />';
+        html += '</div>';
+        html += '</div>';
+
+        html += '</form>';
+
+        swal({
+            title: '<b>Yeni Etkinlik Ekle</b>',
+            type: 'success',
+            html: html,
+            showCancelButton: true,
+            focusConfirm: false,
+            confirmButtonText: 'Kaydet',
+            cancelButtonText: 'İptal'
+        }).then((result) => {
+            if (result.value) {
+                var item = {
+                    id: 0,
+                    title: $('#txtTitle').val(),
+                    color: $('#ddColor').val(),
+                    start: $('#txtStartDate').val(),
+                    end: $('#txtEndDate').val(),
+                    allDay: true
+                }
+                EkleEtkinlik(item);
+            }
+        })
+    }
+
+    // modal'da girilen verileri kaydeder
+    function EkleEtkinlik(item) {
+        $.ajax({
+            type: "POST",
+            url: "/Home/EtkinlikEkle/",
+            //data: "{\"item\":" + JSON.stringify(item) + "}",
+            data: JSON.stringify(item),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            async: true,
+            error: function (request, status, error) {
+                var obj = jQuery.parseJSON(request.responseText);
+                swal(obj.Message);
+            },
+            success: function (msg) {
+                $('#takvim').fullCalendar('refetchEvents');
+                $('#takvim').fullCalendar('unselect');
+                GetTakvimEtkinlik();
+            }
+        });
+    }
+
+    // sürükle bırak veya resize ile tarih bilgilerini güncelleme
+    function EtkinlikTarihGuncelle(selectedItem) {
+        var StartDate = selectedItem.start.format();
+        var EndDate = selectedItem.end != null ? selectedItem.end.format() : selectedItem.start.format();
+
+        $.ajax({
+            type: "POST",
+            url: "/Home/EtkinlikTarihGuncelle/",
+            data: "{\"id\":" + selectedItem.id + ", \"start\":'" + StartDate + "', \"end\":'" + EndDate + "'}",
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            async: true,
+            error: function (request, status, error) {
+                var obj = jQuery.parseJSON(request.responseText);
+                swal(obj.Message);
+            },
+            success: function (msg) {
+                GetTakvimEtkinlik();
+            }
+        });
+    }
+
+    // tıklanan event için silme onayı
+    function EtkinlikSilOnay(id) {
+        swal({
+            title: 'Silmek istediğinize emin misiniz?',
+            type: 'error',
+            showCancelButton: true,
+            confirmButtonText: 'Evet',
+            cancelButtonText: 'Hayır'
+        }).then((result) => {
+            if (result.value) {
+                EtkinlikSil(id);
+            }
+        })
+
+    }
+
+    // tıklanan event'i siler
+    function EtkinlikSil(id) {
+        jQuery.ajax({
+            type: "POST",
+            url: "/Home/EtkinlikSil/",
+            data: "{'id':'" + id + "'}",
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            async: true,
+            error: function (request, status, error) {
+                var obj = jQuery.parseJSON(request.responseText);
+                swal(obj.Message);
+            },
+            success: function (msg) {
+                if (msg) {
+                    $('#takvim').fullCalendar('refetchEvents');
+                    $('#takvim').fullCalendar('unselect');
+                    GetTakvimEtkinlik();
+                }
+            }
+        });
+    }
+
+
+</script>
